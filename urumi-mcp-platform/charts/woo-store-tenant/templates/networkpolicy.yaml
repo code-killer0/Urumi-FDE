@@ -1,0 +1,32 @@
+# Default-Deny Ingress NetworkPolicy with explicit allowances
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: tenant-isolation
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+  ingress:
+    # 1. Allow traffic within the same tenant namespace
+    - from:
+        - podSelector: {}
+
+    # 2. Allow Ingress Controller to route HTTP to WordPress
+    - from:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 80
+
+    # 3. Allow Gateway Pods to connect to the store's dedicated MCP server
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: urumi
+          podSelector:
+            matchLabels:
+              app: mcp-gateway
+      ports:
+        - protocol: TCP
+          port: 8000

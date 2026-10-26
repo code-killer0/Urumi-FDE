@@ -1,0 +1,31 @@
+global:
+  domain: 127.0.0.1.nip.io
+  storageClass: local-path
+  environment: local
+  imagePullPolicy: IfNotPresent
+
+secrets:
+  existingSecret: ""
+  jwtSecret: "urumi-jwt-secure-local-dev-secret-key-32ch"
+  fernetKey: "4bKx82m_zF77Qv4GZkF3y5W9eL_P1R0s_Xa82yKm6Nw="
+  mcpUpstreamToken: "dev-token-woo"
+  wcConsumerKey: "ck_urumi_test_key_001"
+  wcConsumerSecret: "cs_urumi_test_sec_001"
+  dbPassword: "urumi_mariadb_password_2026"
+  postgresPassword: "urumi_pg_password_2026"
+
+gateway:
+  replicaCount: 2
+
+ingress:
+  enabled: true
+  className: traefik
+  annotations: {}
+  hosts:
+    store: store.127.0.0.1.nip.io
+    gateway: gateway.127.0.0.1.nip.io
+    dashboard: app.127.0.0.1.nip.io
+  tls: []
+
+networkPolicies:
+  enabled: true

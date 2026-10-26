@@ -1,0 +1,109 @@
+# ==============================================================================
+# Urumi MCP Platform — Git Ignore Configuration (Workspace Root)
+# ==============================================================================
+
+# ── Secrets, Credentials & Environment Configurations ─────────────────────────
+# NEVER commit API keys, tokens, or environment files to GitHub
+.env
+.env.*
+*.env
+!.env.example
+!.env.*.example
+**/gateway-backend/.env
+**/.env
+
+# Kubernetes Secrets & Cluster Configurations
+kubeconfig*
+*.kubeconfig
+*secret*.yaml
+*secret*.yml
+!*secret-template*.yaml
+!*secret-template*.yml
+
+# Certificates & Private Keys
+*.pem
+*.key
+*.cert
+*.crt
+*.pfx
+*.p12
+*.pub
+
+# ── Databases & Persistent Local State ────────────────────────────────────────
+# SQLite databases generated at runtime (contain live tokens and user hashes)
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+urumi_gateway.db
+urumi_gateway.db*
+**/urumi_gateway.db*
+*.sql
+*.dump
+
+# ── Python & Virtual Environments ─────────────────────────────────────────────
+.venv/
+venv/
+env/
+ENV/
+.env/
+**/.venv/
+**/venv/
+
+# Byte-compiled / optimized files
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Unit test & coverage reports
+.pytest_cache/
+**/.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.mypy_cache/
+.ruff_cache/
+
+# ── Node.js & Dashboard Frontend ──────────────────────────────────────────────
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+out/
+
+# npm / yarn / pnpm logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ── Logs & Runtime Artifacts ──────────────────────────────────────────────────
+*.log
+logs/
+*.pid
+*.seed
+nohup.out
+/tmp/
+
+# ── Operating System & Editor Files ───────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+*.bak
+
+# ── Antigravity / Agentic Workspace Metadata ──────────────────────────────────
+.system_generated/
+.gemini/
+.agents/

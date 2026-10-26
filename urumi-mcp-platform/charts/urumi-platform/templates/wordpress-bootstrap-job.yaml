@@ -1,0 +1,170 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "urumi-platform.fullname" . }}-wp-bootstrap
+  labels:
+    {{- include "urumi-platform.labels" . | nindent 4 }}
+    app: urumi-wp-bootstrap
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  backoffLimit: 5
+  template:
+    metadata:
+      labels:
+        app: urumi-wp-bootstrap
+    spec:
+      restartPolicy: OnFailure
+      volumes:
+        - name: wordpress-data
+          persistentVolumeClaim:
+            claimName: urumi-wordpress-pvc
+      containers:
+        - name: wp-bootstrap
+          image: {{ .Values.bootstrap.image }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          volumeMounts:
+            - name: wordpress-data
+              mountPath: /var/www/html
+          env:
+            - name: WORDPRESS_DB_HOST
+              value: "urumi-mariadb:3306"
+            - name: WORDPRESS_DB_NAME
+              value: {{ .Values.mariadb.database | quote }}
+            - name: WORDPRESS_DB_USER
+              value: {{ .Values.mariadb.user | quote }}
+            - name: WORDPRESS_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default "urumi-secrets" .Values.secrets.existingSecret }}
+                  key: MARIADB_PASSWORD
+            - name: WC_CONSUMER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default "urumi-secrets" .Values.secrets.existingSecret }}
+                  key: WC_CONSUMER_KEY
+            - name: WC_CONSUMER_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default "urumi-secrets" .Values.secrets.existingSecret }}
+                  key: WC_CONSUMER_SECRET
+            - name: SITE_URL
+              value: "http://{{ .Values.ingress.hosts.store }}"
+            - name: ADMIN_USER
+              value: {{ .Values.wordpress.adminUser | quote }}
+            - name: ADMIN_PASS
+              value: {{ .Values.wordpress.adminPassword | quote }}
+            - name: ADMIN_EMAIL
+              value: {{ .Values.wordpress.adminEmail | quote }}
+            - name: SITE_TITLE
+              value: {{ .Values.wordpress.title | quote }}
+          resources:
+            {{- toYaml .Values.bootstrap.resources | nindent 12 }}
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              echo "==> [1/7] Waiting for MariaDB at $WORDPRESS_DB_HOST..."
+              until wp db check --path=/var/www/html 2>/dev/null; do
+                echo "Database not ready yet. Retrying in 3 seconds..."
+                sleep 3
+              done
+              echo "✓ Database connectivity confirmed."
+
+              echo "==> [2/7] Checking WordPress core installation..."
+              if ! wp core is-installed --path=/var/www/html 2>/dev/null; then
+                echo "Installing WordPress core..."
+                wp core install \
+                  --path=/var/www/html \
+                  --url="$SITE_URL" \
+                  --title="$SITE_TITLE" \
+                  --admin_user="$ADMIN_USER" \
+                  --admin_password="$ADMIN_PASS" \
+                  --admin_email="$ADMIN_EMAIL" \
+                  --skip-email
+                echo "✓ WordPress core installed."
+              else
+                echo "✓ WordPress core already installed."
+              fi
+
+              echo "==> [3/7] Setting permalink structure to /%postname%/..."
+              wp rewrite structure '/%postname%/' --hard --path=/var/www/html || true
+
+              echo "==> [4/7] Installing and activating WooCommerce plugin..."
+              if ! wp plugin is-active woocommerce --path=/var/www/html 2>/dev/null; then
+                wp plugin install woocommerce --activate --path=/var/www/html
+              fi
+              echo "✓ WooCommerce plugin active."
+
+              echo "==> [5/7] Enabling Cash on Delivery (COD) payment gateway..."
+              wp wc payment_gateway update cod --enabled=true --user=1 --path=/var/www/html || true
+              echo "✓ Cash on Delivery enabled."
+
+              echo "==> [6/7] Registering WooCommerce REST API keys for MCP Gateway..."
+              wp eval '
+                global $wpdb;
+                $table = $wpdb->prefix . "woocommerce_api_keys";
+                $consumer_key = getenv("WC_CONSUMER_KEY");
+                $consumer_secret = getenv("WC_CONSUMER_SECRET");
+                $truncated = substr($consumer_key, -7);
+
+                $wpdb->query("CREATE TABLE IF NOT EXISTS {$table} (
+                  key_id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+                  user_id bigint(20) unsigned NOT NULL,
+                  description varchar(200) DEFAULT NULL,
+                  permissions varchar(10) NOT NULL,
+                  consumer_key char(64) NOT NULL,
+                  consumer_secret varchar(200) NOT NULL,
+                  nonces longtext DEFAULT NULL,
+                  truncated_key char(7) NOT NULL,
+                  last_access datetime DEFAULT NULL,
+                  PRIMARY KEY (key_id),
+                  KEY consumer_key (consumer_key),
+                  KEY user_id (user_id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
+
+                $wpdb->delete($table, array("description" => "Urumi MCP Gateway Integration"));
+                $wpdb->insert($table, array(
+                  "user_id" => 1,
+                  "description" => "Urumi MCP Gateway Integration",
+                  "permissions" => "read_write",
+                  "consumer_key" => hash("sha256", $consumer_key),
+                  "consumer_secret" => $consumer_secret,
+                  "truncated_key" => $truncated
+                ));
+              ' --path=/var/www/html
+              echo "✓ WooCommerce REST API v3 keys registered for MCP Gateway."
+
+              echo "==> [7/7] Seeding initial WooCommerce product catalog..."
+              COUNT=$(wp post list --post_type=product --format=count --path=/var/www/html || echo "0")
+              if [ "$COUNT" -eq "0" ]; then
+                wp wc product create \
+                  --name="Urumi Kubernetes Hoodie" \
+                  --type=simple \
+                  --regular_price="49.99" \
+                  --description="Premium organic cotton Kubernetes engineering hoodie with microservices crest" \
+                  --user=1 \
+                  --path=/var/www/html
+
+                wp wc product create \
+                  --name="Cloud Native Coffee Mug" \
+                  --type=simple \
+                  --regular_price="18.50" \
+                  --description="Matte black ceramic mug with Go gopher and Kubernetes helm insignia" \
+                  --user=1 \
+                  --path=/var/www/html
+
+                wp wc product create \
+                  --name="Cluster Admin Mechanical Keyboard" \
+                  --type=simple \
+                  --regular_price="129.99" \
+                  --description="Hot-swappable 75% mechanical keyboard with silent tactile switches and PBT keycaps" \
+                  --user=1 \
+                  --path=/var/www/html
+                echo "✓ Seeded 3 production catalog items."
+              else
+                echo "✓ Store already contains $COUNT products."
+              fi
+
+              echo "🎉 Zero-Touch WooCommerce Day-0 Bootstrap Completed Successfully!"

@@ -1,0 +1,67 @@
+store:
+  slug: tenant-store
+  name: "Tenant WooCommerce Store"
+  domain: tenant-store.127.0.0.1.nip.io
+
+storageClass: local-path
+imagePullPolicy: IfNotPresent
+
+quota:
+  cpu: "2"
+  memory: "4Gi"
+  pods: "10"
+
+secrets:
+  dbPassword: "tenant_mariadb_pass_2026"
+  wcConsumerKey: "ck_tenant_key_001"
+  wcConsumerSecret: "cs_tenant_sec_001"
+  mcpUpstreamToken: "tenant-mcp-token-2026"
+
+mariadb:
+  image: mariadb:11.2
+  storage: 5Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+wordpress:
+  image: wordpress:6.4-apache
+  storage: 5Gi
+  adminUser: admin
+  adminEmail: admin@tenant.local
+  adminPassword: "TenantWooPass2026!"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+bootstrap:
+  image: wordpress:cli-php8.2
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 300m
+      memory: 256Mi
+
+woocommerceMcp:
+  image: urumi/woocommerce-mcp:latest
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 300m
+      memory: 256Mi
+
+ingress:
+  enabled: true
+  className: traefik

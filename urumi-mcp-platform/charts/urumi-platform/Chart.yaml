@@ -1,0 +1,9 @@
+apiVersion: v2
+name: urumi-platform
+description: High-Availability MCP Gateway Engine and WooCommerce Hosting Platform on Kubernetes
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+maintainers:
+  - name: Urumi AI Platform Engineering
+    email: engineering@urumi.ai

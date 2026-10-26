@@ -1,0 +1,9 @@
+apiVersion: v2
+name: woo-store-tenant
+description: Isolated Multi-Tenant WooCommerce Store and Dedicated MCP Server Helm Chart
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+maintainers:
+  - name: Urumi AI Platform Engineering
+    email: engineering@urumi.ai

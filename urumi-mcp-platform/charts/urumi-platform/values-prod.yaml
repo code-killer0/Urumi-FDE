@@ -1,0 +1,44 @@
+global:
+  domain: urumi.example.com
+  storageClass: local-path
+  environment: production
+  imagePullPolicy: IfNotPresent
+
+# In production, secrets are provisioned via Vault or runtime kubectl secret injection
+secrets:
+  existingSecret: urumi-prod-secrets
+  jwtSecret: ""
+  fernetKey: ""
+  mcpUpstreamToken: ""
+  wcConsumerKey: ""
+  wcConsumerSecret: ""
+  dbPassword: ""
+  postgresPassword: ""
+
+gateway:
+  replicaCount: 3
+
+ingress:
+  enabled: true
+  className: traefik
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+  hosts:
+    store: store.urumi.example.com
+    gateway: gateway.urumi.example.com
+    dashboard: app.urumi.example.com
+  tls:
+    - secretName: urumi-tls-store
+      hosts:
+        - store.urumi.example.com
+    - secretName: urumi-tls-gateway
+      hosts:
+        - gateway.urumi.example.com
+    - secretName: urumi-tls-app
+      hosts:
+        - app.urumi.example.com
+
+networkPolicies:
+  enabled: true

@@ -1,0 +1,79 @@
+{{- if .Values.networkPolicies.enabled }}
+# 1. MCP Upstream Pods Isolation
+# Only Gateway pods can connect to MCP upstream servers on port 8000
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: isolate-mcp-upstreams
+  labels:
+    {{- include "urumi-platform.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      tier: mcp-upstream
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: mcp-gateway
+      ports:
+        - protocol: TCP
+          port: 8000
+        - protocol: TCP
+          port: 8001
+        - protocol: TCP
+          port: 8002
+        - protocol: TCP
+          port: 8003
+---
+# 2. MariaDB Isolation
+# Only WordPress and wp-bootstrap job pods can connect to MariaDB on port 3306
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: isolate-mariadb
+  labels:
+    {{- include "urumi-platform.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: urumi-mariadb
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: urumi-wordpress
+        - podSelector:
+            matchLabels:
+              app: urumi-wp-bootstrap
+      ports:
+        - protocol: TCP
+          port: 3306
+---
+# 3. PostgreSQL Isolation
+# Only Gateway pods can connect to PostgreSQL database on port 5432
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: isolate-postgres
+  labels:
+    {{- include "urumi-platform.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: urumi-postgres
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: mcp-gateway
+      ports:
+        - protocol: TCP
+          port: 5432
+{{- end }}

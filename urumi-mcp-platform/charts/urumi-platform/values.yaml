@@ -1,0 +1,128 @@
+global:
+  domain: 127.0.0.1.nip.io
+  storageClass: standard
+  environment: local
+  imagePullPolicy: IfNotPresent
+
+secrets:
+  existingSecret: ""
+  jwtSecret: "urumi-jwt-secure-auth-secret-key-32chars"
+  fernetKey: "4bKx82m_zF77Qv4GZkF3y5W9eL_P1R0s_Xa82yKm6Nw="
+  mcpUpstreamToken: "dev-token-woo"
+  wcConsumerKey: "ck_urumi_test_key_001"
+  wcConsumerSecret: "cs_urumi_test_sec_001"
+  dbPassword: "urumi_mariadb_password_2026"
+  postgresPassword: "urumi_pg_password_2026"
+
+postgres:
+  image: postgres:16-alpine
+  storage: 5Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+mariadb:
+  image: mariadb:11.2
+  database: wordpress
+  user: wordpress
+  storage: 10Gi
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+wordpress:
+  image: wordpress:6.4-apache
+  storage: 10Gi
+  title: "Urumi Flagship Store"
+  adminUser: admin
+  adminEmail: admin@urumi.local
+  adminPassword: "UrumiWooPass2026!"
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+bootstrap:
+  image: wordpress:cli-php8.2
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+mcpServers:
+  woocommerce:
+    image: urumi/woocommerce-mcp:latest
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 300m
+        memory: 256Mi
+  promos:
+    image: urumi/promos-analytics-mcp:latest
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 300m
+        memory: 256Mi
+  ops:
+    image: urumi/ops-notifier-mcp:latest
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 300m
+        memory: 256Mi
+
+gateway:
+  replicaCount: 2
+  image: urumi/gateway-backend:latest
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 512Mi
+
+dashboard:
+  replicaCount: 1
+  image: urumi/dashboard:latest
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+ingress:
+  enabled: true
+  className: traefik
+  annotations: {}
+  hosts:
+    store: store.127.0.0.1.nip.io
+    gateway: gateway.127.0.0.1.nip.io
+    dashboard: app.127.0.0.1.nip.io
+  tls: []
+
+networkPolicies:
+  enabled: true

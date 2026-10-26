@@ -1,0 +1,73 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: promos-analytics-mcp
+  labels:
+    {{- include "urumi-platform.labels" . | nindent 4 }}
+    app: promos-analytics-mcp
+    tier: mcp-upstream
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8000
+      targetPort: 8000
+      name: http-mcp
+  selector:
+    app: promos-analytics-mcp
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: promos-analytics-mcp
+  labels:
+    {{- include "urumi-platform.labels" . | nindent 4 }}
+    app: promos-analytics-mcp
+    tier: mcp-upstream
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: promos-analytics-mcp
+  template:
+    metadata:
+      labels:
+        app: promos-analytics-mcp
+        tier: mcp-upstream
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: promos-mcp
+          image: {{ .Values.mcpServers.promos.image }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+          ports:
+            - containerPort: 8000
+              name: http-mcp
+          env:
+            - name: PORT
+              value: "8000"
+            - name: MCP_UPSTREAM_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default "urumi-secrets" .Values.secrets.existingSecret }}
+                  key: MCP_UPSTREAM_TOKEN
+          resources:
+            {{- toYaml .Values.mcpServers.promos.resources | nindent 12 }}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 3

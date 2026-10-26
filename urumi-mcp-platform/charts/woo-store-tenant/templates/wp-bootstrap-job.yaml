@@ -1,0 +1,126 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: tenant-wp-bootstrap
+  labels:
+    app: tenant-wp-bootstrap
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  backoffLimit: 5
+  template:
+    metadata:
+      labels:
+        app: tenant-wp-bootstrap
+    spec:
+      restartPolicy: OnFailure
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: tenant-wordpress-pvc
+      containers:
+        - name: wp-bootstrap
+          image: {{ .Values.bootstrap.image }}
+          imagePullPolicy: {{ .Values.imagePullPolicy }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/www/html
+          env:
+            - name: WORDPRESS_DB_HOST
+              value: "mariadb:3306"
+            - name: WORDPRESS_DB_NAME
+              value: "wordpress"
+            - name: WORDPRESS_DB_USER
+              value: "wordpress"
+            - name: WORDPRESS_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: tenant-secrets
+                  key: MARIADB_PASSWORD
+            - name: WC_CONSUMER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: tenant-secrets
+                  key: WC_CONSUMER_KEY
+            - name: WC_CONSUMER_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: tenant-secrets
+                  key: WC_CONSUMER_SECRET
+            - name: SITE_URL
+              value: "http://{{ .Values.store.domain }}"
+            - name: SITE_TITLE
+              value: {{ .Values.store.name | quote }}
+            - name: ADMIN_USER
+              value: {{ .Values.wordpress.adminUser | quote }}
+            - name: ADMIN_PASS
+              value: {{ .Values.wordpress.adminPassword | quote }}
+            - name: ADMIN_EMAIL
+              value: {{ .Values.wordpress.adminEmail | quote }}
+          resources:
+            {{- toYaml .Values.bootstrap.resources | nindent 12 }}
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              echo "Waiting for MariaDB..."
+              until wp db check --path=/var/www/html 2>/dev/null; do
+                sleep 3
+              done
+
+              if ! wp core is-installed --path=/var/www/html 2>/dev/null; then
+                wp core install \
+                  --path=/var/www/html \
+                  --url="$SITE_URL" \
+                  --title="$SITE_TITLE" \
+                  --admin_user="$ADMIN_USER" \
+                  --admin_password="$ADMIN_PASS" \
+                  --admin_email="$ADMIN_EMAIL" \
+                  --skip-email
+              fi
+
+              wp rewrite structure '/%postname%/' --hard --path=/var/www/html || true
+
+              if ! wp plugin is-active woocommerce --path=/var/www/html 2>/dev/null; then
+                wp plugin install woocommerce --activate --path=/var/www/html
+              fi
+
+              wp wc payment_gateway update cod --enabled=true --user=1 --path=/var/www/html || true
+
+              TRUNCATED_KEY=$(echo -n "$WC_CONSUMER_KEY" | tail -c 7)
+              wp db query "
+                CREATE TABLE IF NOT EXISTS wp_woocommerce_api_keys (
+                  key_id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+                  user_id bigint(20) unsigned NOT NULL,
+                  description varchar(200) DEFAULT NULL,
+                  permissions varchar(10) NOT NULL,
+                  consumer_key char(64) NOT NULL,
+                  consumer_secret varchar(200) NOT NULL,
+                  nonces longtext DEFAULT NULL,
+                  truncated_key char(7) NOT NULL,
+                  last_access datetime DEFAULT NULL,
+                  PRIMARY KEY (key_id),
+                  KEY consumer_key (consumer_key),
+                  KEY user_id (user_id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+                DELETE FROM wp_woocommerce_api_keys WHERE description = 'Urumi MCP Tenant Gateway';
+
+                INSERT INTO wp_woocommerce_api_keys (user_id, description, permissions, consumer_key, consumer_secret, truncated_key)
+                VALUES (
+                  1,
+                  'Urumi MCP Tenant Gateway',
+                  'read_write',
+                  SHA2('$WC_CONSUMER_KEY', 256),
+                  '$WC_CONSUMER_SECRET',
+                  '$TRUNCATED_KEY'
+                );
+              " --path=/var/www/html
+
+              COUNT=$(wp post list --post_type=product --format=count --path=/var/www/html || echo "0")
+              if [ "$COUNT" -eq "0" ]; then
+                wp wc product create --name="Tenant Store Product 1" --type=simple --regular_price="29.99" --user=1 --path=/var/www/html
+                wp wc product create --name="Tenant Store Product 2" --type=simple --regular_price="59.99" --user=1 --path=/var/www/html
+              fi
+              echo "✓ Tenant Bootstrap Complete."

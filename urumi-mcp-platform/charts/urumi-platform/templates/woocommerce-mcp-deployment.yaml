@@ -1,0 +1,86 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: woocommerce-mcp
+  labels:
+    {{- include "urumi-platform.labels" . | nindent 4 }}
+    app: woocommerce-mcp
+    tier: mcp-upstream
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8000
+      targetPort: 8000
+      name: http-mcp
+  selector:
+    app: woocommerce-mcp
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: woocommerce-mcp
+  labels:
+    {{- include "urumi-platform.labels" . | nindent 4 }}
+    app: woocommerce-mcp
+    tier: mcp-upstream
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: woocommerce-mcp
+  template:
+    metadata:
+      labels:
+        app: woocommerce-mcp
+        tier: mcp-upstream
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: woocommerce-mcp
+          image: {{ .Values.mcpServers.woocommerce.image }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+          ports:
+            - containerPort: 8000
+              name: http-mcp
+          env:
+            - name: PORT
+              value: "8000"
+            - name: WC_BASE_URL
+              value: "http://urumi-wordpress"
+            - name: WC_CONSUMER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default "urumi-secrets" .Values.secrets.existingSecret }}
+                  key: WC_CONSUMER_KEY
+            - name: WC_CONSUMER_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default "urumi-secrets" .Values.secrets.existingSecret }}
+                  key: WC_CONSUMER_SECRET
+            - name: MCP_UPSTREAM_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default "urumi-secrets" .Values.secrets.existingSecret }}
+                  key: MCP_UPSTREAM_TOKEN
+          resources:
+            {{- toYaml .Values.mcpServers.woocommerce.resources | nindent 12 }}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 3

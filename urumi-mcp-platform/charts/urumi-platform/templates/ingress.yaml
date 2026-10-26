@@ -1,0 +1,56 @@
+{{- if .Values.ingress.enabled -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: urumi-ingress
+  labels:
+    {{- include "urumi-platform.labels" . | nindent 4 }}
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.ingress.className }}
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- end }}
+  {{- if .Values.ingress.tls }}
+  tls:
+    {{- toYaml .Values.ingress.tls | nindent 4 }}
+  {{- end }}
+  rules:
+    # 1. WooCommerce Storefront & Admin
+    - host: {{ .Values.ingress.hosts.store }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: urumi-wordpress
+                port:
+                  number: 80
+
+    # 2. High-Availability MCP Gateway API & Streamable Protocol Endpoint
+    - host: {{ .Values.ingress.hosts.gateway }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: urumi-gateway
+                port:
+                  number: 8000
+
+    # 3. Enterprise React UI Dashboard
+    - host: {{ .Values.ingress.hosts.dashboard }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: urumi-dashboard
+                port:
+                  number: 80
+{{- end }}
